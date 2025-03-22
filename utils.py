@@ -40,7 +40,7 @@ def generate_network_graph(df):
     """
     Generate a table-based visualization of the database schema,
     with each database in its own bordered section and database name in a small box
-    at the top left of each section, similar to the example image.
+    at the top left outside of the rectangle, similar to the example image.
     
     Args:
         df (pandas.DataFrame): Processed DataFrame containing the schema data.
@@ -60,7 +60,7 @@ def generate_network_graph(df):
     vertical_padding = 20  # Padding between database and tables (vertical)
     
     # Define dimensions
-    db_name_width = 40  # Width of database name box
+    db_name_width = 30  # Width of database name box
     db_name_height = 30  # Height of database name box
     table_header_height = 30  # Height of table header
     row_height = 25  # Height of each column row
@@ -78,7 +78,7 @@ def generate_network_graph(df):
     column_name_color = '#000000'  # Black for column names
     
     # Set initial positions
-    current_x = 50  # Starting position
+    current_x = 80  # Starting position (moved right to make room for DB name box)
     
     # Calculate total height needed (will be updated as we go)
     max_height = 0
@@ -105,7 +105,7 @@ def generate_network_graph(df):
             max_table_height = max(max_table_height, table_height)
         
         # Store the maximum height for this database section
-        db_max_heights[db_name] = max_table_height + vertical_padding + 40  # Extra padding and height for name box
+        db_max_heights[db_name] = max_table_height + vertical_padding + 20  # Extra padding
     
     # Second pass: Draw the visualization
     for db_idx, db_name in enumerate(databases):
@@ -122,6 +122,28 @@ def generate_network_graph(df):
         db_left = current_x
         db_right = current_x + db_widths[db_name] + table_padding
         
+        # Draw database name box (small box at top left OUTSIDE the main rectangle)
+        fig.add_shape(
+            type="rect",
+            x0=db_left - db_name_width,  # Outside to the left
+            y0=db_top,
+            x1=db_left,  # Up to the main rectangle's left edge
+            y1=db_top + db_name_height,
+            line=dict(color=border_color, width=1),
+            fillcolor=db_name_color
+        )
+        
+        # Add database name in the small box
+        fig.add_annotation(
+            x=db_left - db_name_width/2,
+            y=db_top + db_name_height/2,
+            text=f"<b>{db_name}</b>",
+            showarrow=False,
+            font=dict(size=14, color=db_name_text_color),
+            xanchor="center",
+            yanchor="middle"
+        )
+        
         # Draw database border (the outer rectangle)
         fig.add_shape(
             type="rect",
@@ -131,28 +153,6 @@ def generate_network_graph(df):
             y1=db_bottom,
             line=dict(color=db_border_color, width=2),
             fillcolor=None
-        )
-        
-        # Draw database name box (small box at top left corner)
-        fig.add_shape(
-            type="rect",
-            x0=db_left,
-            y0=db_top,
-            x1=db_left + db_name_width,
-            y1=db_top + db_name_height,
-            line=dict(color=border_color, width=1),
-            fillcolor=db_name_color
-        )
-        
-        # Add database name in the small box
-        fig.add_annotation(
-            x=db_left + db_name_width/2,
-            y=db_top + db_name_height/2,
-            text=f"<b>{db_name}</b>",
-            showarrow=False,
-            font=dict(size=14, color=db_name_text_color),
-            xanchor="center",
-            yanchor="middle"
         )
         
         # Initial position for tables
@@ -167,7 +167,7 @@ def generate_network_graph(df):
             table_height = table_header_height + (len(table_columns) * row_height)
             
             # Calculate y position for this table (all tables start at the same y level)
-            table_y = db_top + vertical_padding + db_name_height  # Start below the database name box
+            table_y = db_top + vertical_padding
             
             # Draw table header
             fig.add_shape(
