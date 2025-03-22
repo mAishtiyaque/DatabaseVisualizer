@@ -38,239 +38,223 @@ def process_csv(df):
 
 def generate_network_graph(df):
     """
-    Generate a DFD-style squared visualization of the database schema.
+    Generate a table-based visualization of the database schema,
+    similar to a nested table structure with databases containing tables,
+    and tables containing columns.
     
     Args:
         df (pandas.DataFrame): Processed DataFrame containing the schema data.
         
     Returns:
-        plotly.graph_objects.Figure: A Plotly figure for the DFD diagram.
+        plotly.graph_objects.Figure: A Plotly figure for the table-based schema diagram.
     """
-    # Get unique databases, tables, and create a structured hierarchy
-    databases = df['Database'].unique()
-    
-    # Create figure
+    # Create a new blank figure with a white background
     fig = go.Figure()
     
-    # Set up the layout grid based on the number of databases
-    db_count = len(databases)
+    # Get unique databases and their tables
+    databases = df['Database'].unique()
     
-    # Define colors for the different entity types
-    db_color = '#FF5733'    # Red for databases
-    table_color = '#33A8FF'  # Blue for tables
-    column_color = '#33FF57' # Green for columns
+    # Define spacing and positioning parameters
+    db_padding = 50  # Padding between databases (horizontal)
+    table_padding = 20  # Padding between tables (horizontal)
+    vertical_padding = 50  # Padding between database and tables (vertical)
     
-    # Set up the layout for a hierarchical DFD-style diagram
-    # We'll place databases at the top, tables in the middle, and columns at the bottom
+    # Define dimensions
+    db_height = 40  # Height of database box
+    table_header_height = 30  # Height of table header
+    row_height = 25  # Height of each column row
+    table_width = 150  # Width of each table
     
-    # Calculate spacing and dimensions
-    y_spacing = 1.0 / (db_count + 1)
-    db_x_position = 0.5  # Center of the diagram
-    db_width = 0.9 / db_count  # Width proportional to number of databases
-    db_height = 0.1
+    # Define colors
+    db_color = '#99CCFF'  # Light blue for databases
+    table_header_color = '#CCCCCC'  # Gray for table headers
+    even_row_color = '#FFFFFF'  # White for even rows
+    odd_row_color = '#F5F5F5'  # Light gray for odd rows
+    border_color = '#000000'  # Black for borders
+    db_name_color = '#000080'  # Navy for database names
+    table_name_color = '#000000'  # Black for table names
+    column_name_color = '#000000'  # Black for column names
     
-    # Draw databases and their tables
+    # Calculate total width needed
+    total_width = 0
+    db_widths = {}  # Store width for each database
+    
+    for db_name in databases:
+        # Get tables for this database
+        db_tables = df[df['Database'] == db_name]['Table'].unique()
+        # Calculate width based on number of tables
+        db_width = len(db_tables) * (table_width + table_padding) - table_padding
+        db_widths[db_name] = max(150, db_width)  # Minimum width of 150px
+        total_width += db_widths[db_name] + db_padding
+    
+    # Adjust for last padding
+    total_width -= db_padding
+    
+    # Set initial x position
+    current_x = 50  # Starting position
+    
+    # Calculate total height needed (will be updated as we go)
+    max_height = 0
+    
+    # Draw each database and its tables
     for db_idx, db_name in enumerate(databases):
         # Get tables for this database
         db_tables = df[df['Database'] == db_name]['Table'].unique()
         
-        # Calculate the y position for the database
-        db_y_pos = 0.9
-        
-        # Add database rectangle
+        # Draw database rectangle
         fig.add_shape(
             type="rect",
-            x0=db_x_position - db_width/2 + (db_idx - db_count/2 + 0.5) * db_width,
-            y0=db_y_pos - db_height/2,
-            x1=db_x_position - db_width/2 + (db_idx - db_count/2 + 1.5) * db_width,
-            y1=db_y_pos + db_height/2,
-            line=dict(color="black", width=2),
-            fillcolor=db_color,
-            opacity=0.7
+            x0=current_x,
+            y0=50,
+            x1=current_x + db_widths[db_name],
+            y1=50 + db_height,
+            line=dict(color=border_color, width=2),
+            fillcolor=db_color
         )
         
-        # Add database label
+        # Add database name
         fig.add_annotation(
-            x=db_x_position + (db_idx - db_count/2 + 0.5) * db_width,
-            y=db_y_pos,
+            x=current_x + 20,
+            y=50 + db_height/2,
             text=f"<b>{db_name}</b>",
             showarrow=False,
-            font=dict(size=14, color="white")
+            font=dict(size=14, color=db_name_color),
+            xanchor="left",
+            yanchor="middle"
         )
+        
+        # Initial position for tables
+        table_x = current_x
         
         # Draw tables for this database
-        table_count = len(db_tables)
-        table_width = db_width * 0.8  # Slightly narrower than the database
-        table_height = 0.08
-        table_y_level = 0.7  # Below the database level
-        
         for table_idx, table_name in enumerate(db_tables):
-            # Calculate x position for this table (centered under the database)
-            table_x_center = db_x_position + (db_idx - db_count/2 + 0.5) * db_width
-            table_x_offset = (table_idx - table_count/2 + 0.5) * (table_width * 1.2) / max(1, table_count)
-            
-            # Draw table rectangle
-            fig.add_shape(
-                type="rect",
-                x0=table_x_center + table_x_offset - table_width/2,
-                y0=table_y_level - table_height/2,
-                x1=table_x_center + table_x_offset + table_width/2,
-                y1=table_y_level + table_height/2,
-                line=dict(color="black", width=1),
-                fillcolor=table_color,
-                opacity=0.7
-            )
-            
-            # Add table label
-            fig.add_annotation(
-                x=table_x_center + table_x_offset,
-                y=table_y_level,
-                text=f"<b>{table_name}</b>",
-                showarrow=False,
-                font=dict(size=12, color="white")
-            )
-            
-            # Draw connector line between database and table
-            fig.add_shape(
-                type="line",
-                x0=table_x_center,
-                y0=db_y_pos - db_height/2,
-                x1=table_x_center + table_x_offset,
-                y1=table_y_level + table_height/2,
-                line=dict(color="black", width=1, dash="dot")
-            )
-            
             # Get columns for this table
             table_columns = df[(df['Database'] == db_name) & (df['Table'] == table_name)]['Column'].values
-            column_count = len(table_columns)
-            column_width = table_width * 0.7  # Narrower than the table
-            column_height = 0.06
-            column_y_level = 0.5  # Below the table level
             
-            # Determine how many columns to show before grouping
-            max_visible_columns = 5
+            # Calculate table height based on number of columns
+            table_height = table_header_height + (len(table_columns) * row_height)
             
-            if column_count <= max_visible_columns:
-                # Show all columns individually
-                for col_idx, col_name in enumerate(table_columns):
-                    # Calculate column position (arranged horizontally under the table)
-                    col_x_center = table_x_center + table_x_offset
-                    col_y_offset = (col_idx - column_count/2 + 0.5) * (column_height * 1.5)
-                    
-                    # Draw column rectangle
-                    fig.add_shape(
-                        type="rect",
-                        x0=col_x_center - column_width/2,
-                        y0=column_y_level + col_y_offset - column_height/2,
-                        x1=col_x_center + column_width/2,
-                        y1=column_y_level + col_y_offset + column_height/2,
-                        line=dict(color="black", width=1),
-                        fillcolor=column_color,
-                        opacity=0.7
-                    )
-                    
-                    # Add column label
-                    fig.add_annotation(
-                        x=col_x_center,
-                        y=column_y_level + col_y_offset,
-                        text=f"{col_name}",
-                        showarrow=False,
-                        font=dict(size=10, color="black")
-                    )
-                    
-                    # Draw connector line between table and column
-                    fig.add_shape(
-                        type="line",
-                        x0=table_x_center + table_x_offset,
-                        y0=table_y_level - table_height/2,
-                        x1=col_x_center,
-                        y1=column_y_level + col_y_offset + column_height/2,
-                        line=dict(color="black", width=1, dash="dot")
-                    )
-            else:
-                # Group columns into a single box
-                # Draw column rectangle
+            # Calculate y position for this table (all tables start at the same y level)
+            table_y = 50 + db_height + vertical_padding
+            
+            # Draw table header
+            fig.add_shape(
+                type="rect",
+                x0=table_x,
+                y0=table_y,
+                x1=table_x + table_width,
+                y1=table_y + table_header_height,
+                line=dict(color=border_color, width=1),
+                fillcolor=table_header_color
+            )
+            
+            # Add table name
+            fig.add_annotation(
+                x=table_x + 10,
+                y=table_y + table_header_height/2,
+                text=f"<b>{table_name}</b>",
+                showarrow=False,
+                font=dict(size=12, color=table_name_color),
+                xanchor="left",
+                yanchor="middle"
+            )
+            
+            # Add table columns
+            for col_idx, col_name in enumerate(table_columns):
+                # Calculate row position
+                row_y = table_y + table_header_height + (col_idx * row_height)
+                
+                # Determine row color (alternating)
+                row_color = even_row_color if col_idx % 2 == 0 else odd_row_color
+                
+                # Draw row background
                 fig.add_shape(
                     type="rect",
-                    x0=table_x_center + table_x_offset - column_width/2,
-                    y0=column_y_level - column_height,
-                    x1=table_x_center + table_x_offset + column_width/2,
-                    y1=column_y_level + column_height,
-                    line=dict(color="black", width=1),
-                    fillcolor=column_color,
-                    opacity=0.7
+                    x0=table_x,
+                    y0=row_y,
+                    x1=table_x + table_width,
+                    y1=row_y + row_height,
+                    line=dict(color=border_color, width=1),
+                    fillcolor=row_color
                 )
                 
-                # Add column label
+                # Add column name
                 fig.add_annotation(
-                    x=table_x_center + table_x_offset,
-                    y=column_y_level,
-                    text=f"{column_count} Columns",
+                    x=table_x + 10,
+                    y=row_y + row_height/2,
+                    text=f"{col_name}",
                     showarrow=False,
-                    font=dict(size=10, color="black")
+                    font=dict(size=10, color=column_name_color),
+                    xanchor="left",
+                    yanchor="middle"
                 )
                 
-                # Draw connector line between table and column group
+                # Add data type or other info column (e.g., "INT")
+                # This is based on your example image which shows column types
                 fig.add_shape(
                     type="line",
-                    x0=table_x_center + table_x_offset,
-                    y0=table_y_level - table_height/2,
-                    x1=table_x_center + table_x_offset,
-                    y1=column_y_level + column_height,
-                    line=dict(color="black", width=1, dash="dot")
+                    x0=table_x + table_width*0.7,
+                    y0=row_y,
+                    x1=table_x + table_width*0.7,
+                    y1=row_y + row_height,
+                    line=dict(color=border_color, width=1)
                 )
-    
-    # Add legend as shapes with text
-    legend_shapes = [
-        {"label": "Database", "color": db_color, "y": 0.05},
-        {"label": "Table", "color": table_color, "y": 0.10},
-        {"label": "Column", "color": column_color, "y": 0.15}
-    ]
-    
-    for legend in legend_shapes:
-        # Add legend box
-        fig.add_shape(
-            type="rect",
-            x0=0.02,
-            y0=legend["y"] - 0.02,
-            x1=0.07,
-            y1=legend["y"] + 0.02,
-            line=dict(color="black", width=1),
-            fillcolor=legend["color"],
-            opacity=0.7
-        )
+                
+                # Add placeholder for data type
+                data_type = "INT"  # Default placeholder type
+                fig.add_annotation(
+                    x=table_x + table_width*0.85,
+                    y=row_y + row_height/2,
+                    text=data_type,
+                    showarrow=False,
+                    font=dict(size=9, color=column_name_color),
+                    xanchor="center",
+                    yanchor="middle"
+                )
+            
+            # Update the maximum height if needed
+            current_height = table_y + table_height
+            max_height = max(max_height, current_height)
+            
+            # Move to the next table position
+            table_x += table_width + table_padding
         
-        # Add legend label
-        fig.add_annotation(
-            x=0.12,
-            y=legend["y"],
-            text=legend["label"],
-            showarrow=False,
-            xanchor="left",
-            font=dict(size=12, color="black")
-        )
+        # Move x position for the next database
+        current_x += db_widths[db_name] + db_padding
+    
+    # Add outer border for the entire diagram
+    fig.add_shape(
+        type="rect",
+        x0=30,
+        y0=30,
+        x1=current_x - db_padding + 20,
+        y1=max_height + 30,
+        line=dict(color=border_color, width=3),
+        fillcolor=None
+    )
     
     # Set up the layout
     fig.update_layout(
-        title='Database Schema DFD Diagram',
-        showlegend=False,
+        title='Database Schema Visualization',
         plot_bgcolor='white',
-        height=700,
+        height=max_height + 60,
+        width=current_x,
         xaxis=dict(
             showgrid=False, 
             zeroline=False, 
             showticklabels=False,
-            range=[0, 1]
+            range=[0, current_x]
         ),
         yaxis=dict(
             showgrid=False, 
             zeroline=False, 
             showticklabels=False,
-            range=[0, 1],
+            range=[0, max_height + 60],
             scaleanchor="x",
             scaleratio=1
         ),
-        margin=dict(l=20, r=20, t=40, b=20)
+        margin=dict(l=40, r=40, t=40, b=40),
+        showlegend=False
     )
     
     return fig
