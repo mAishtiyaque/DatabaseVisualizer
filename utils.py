@@ -39,8 +39,8 @@ def process_csv(df):
 def generate_network_graph(df):
     """
     Generate a table-based visualization of the database schema,
-    similar to a nested table structure with databases containing tables,
-    and tables containing columns.
+    with each database in its own bordered section and database name in a small box
+    at the top left of each section, similar to the example image.
     
     Args:
         df (pandas.DataFrame): Processed DataFrame containing the schema data.
@@ -57,74 +57,106 @@ def generate_network_graph(df):
     # Define spacing and positioning parameters
     db_padding = 50  # Padding between databases (horizontal)
     table_padding = 20  # Padding between tables (horizontal)
-    vertical_padding = 50  # Padding between database and tables (vertical)
+    vertical_padding = 20  # Padding between database and tables (vertical)
     
     # Define dimensions
-    db_height = 40  # Height of database box
+    db_name_width = 40  # Width of database name box
+    db_name_height = 30  # Height of database name box
     table_header_height = 30  # Height of table header
     row_height = 25  # Height of each column row
     table_width = 150  # Width of each table
     
     # Define colors
-    db_color = '#99CCFF'  # Light blue for databases
+    db_border_color = '#000080'  # Navy blue for database borders
+    db_name_color = '#000080'  # Navy for database name background
+    db_name_text_color = '#FFFFFF'  # White for database name text
     table_header_color = '#CCCCCC'  # Gray for table headers
     even_row_color = '#FFFFFF'  # White for even rows
     odd_row_color = '#F5F5F5'  # Light gray for odd rows
     border_color = '#000000'  # Black for borders
-    db_name_color = '#000080'  # Navy for database names
     table_name_color = '#000000'  # Black for table names
     column_name_color = '#000000'  # Black for column names
     
-    # Calculate total width needed
-    total_width = 0
+    # Set initial positions
+    current_x = 50  # Starting position
+    
+    # Calculate total height needed (will be updated as we go)
+    max_height = 0
+    db_max_heights = {}  # Track the maximum height of each database section
+    
+    # First pass: Calculate widths and heights for each database
     db_widths = {}  # Store width for each database
     
     for db_name in databases:
         # Get tables for this database
         db_tables = df[df['Database'] == db_name]['Table'].unique()
+        
         # Calculate width based on number of tables
         db_width = len(db_tables) * (table_width + table_padding) - table_padding
         db_widths[db_name] = max(150, db_width)  # Minimum width of 150px
-        total_width += db_widths[db_name] + db_padding
+        
+        # Calculate maximum height for this database
+        max_table_height = 0
+        for table_name in db_tables:
+            # Get columns for this table
+            table_columns = df[(df['Database'] == db_name) & (df['Table'] == table_name)]['Column'].values
+            # Calculate table height
+            table_height = table_header_height + (len(table_columns) * row_height)
+            max_table_height = max(max_table_height, table_height)
+        
+        # Store the maximum height for this database section
+        db_max_heights[db_name] = max_table_height + vertical_padding + 40  # Extra padding and height for name box
     
-    # Adjust for last padding
-    total_width -= db_padding
-    
-    # Set initial x position
-    current_x = 50  # Starting position
-    
-    # Calculate total height needed (will be updated as we go)
-    max_height = 0
-    
-    # Draw each database and its tables
+    # Second pass: Draw the visualization
     for db_idx, db_name in enumerate(databases):
         # Get tables for this database
         db_tables = df[df['Database'] == db_name]['Table'].unique()
         
-        # Draw database rectangle
+        # Top position for this database section
+        db_top = 50
+        
+        # Bottom position determined by the maximum table height in this database
+        db_bottom = db_top + db_max_heights[db_name] + vertical_padding
+        
+        # Left and right positions for the database border
+        db_left = current_x
+        db_right = current_x + db_widths[db_name] + table_padding
+        
+        # Draw database border (the outer rectangle)
         fig.add_shape(
             type="rect",
-            x0=current_x,
-            y0=50,
-            x1=current_x + db_widths[db_name],
-            y1=50 + db_height,
-            line=dict(color=border_color, width=2),
-            fillcolor=db_color
+            x0=db_left,
+            y0=db_top,
+            x1=db_right,
+            y1=db_bottom,
+            line=dict(color=db_border_color, width=2),
+            fillcolor=None
         )
         
-        # Add database name
+        # Draw database name box (small box at top left corner)
+        fig.add_shape(
+            type="rect",
+            x0=db_left,
+            y0=db_top,
+            x1=db_left + db_name_width,
+            y1=db_top + db_name_height,
+            line=dict(color=border_color, width=1),
+            fillcolor=db_name_color
+        )
+        
+        # Add database name in the small box
         fig.add_annotation(
-            x=current_x + 20,
-            y=50 + db_height/2,
+            x=db_left + db_name_width/2,
+            y=db_top + db_name_height/2,
             text=f"<b>{db_name}</b>",
             showarrow=False,
-            font=dict(size=14, color=db_name_color),
-            xanchor="left",
+            font=dict(size=14, color=db_name_text_color),
+            xanchor="center",
             yanchor="middle"
         )
         
         # Initial position for tables
-        table_x = current_x
+        table_x = db_left + 20  # Start a bit to the right of the left border
         
         # Draw tables for this database
         for table_idx, table_name in enumerate(db_tables):
@@ -135,7 +167,7 @@ def generate_network_graph(df):
             table_height = table_header_height + (len(table_columns) * row_height)
             
             # Calculate y position for this table (all tables start at the same y level)
-            table_y = 50 + db_height + vertical_padding
+            table_y = db_top + vertical_padding + db_name_height  # Start below the database name box
             
             # Draw table header
             fig.add_shape(
@@ -212,26 +244,18 @@ def generate_network_graph(df):
                     yanchor="middle"
                 )
             
-            # Update the maximum height if needed
-            current_height = table_y + table_height
-            max_height = max(max_height, current_height)
+            # Update maximum height for this database if needed
+            current_table_bottom = table_y + table_height
+            db_bottom = max(db_bottom, current_table_bottom + vertical_padding)
             
             # Move to the next table position
             table_x += table_width + table_padding
         
+        # Update the overall maximum height
+        max_height = max(max_height, db_bottom)
+        
         # Move x position for the next database
-        current_x += db_widths[db_name] + db_padding
-    
-    # Add outer border for the entire diagram
-    fig.add_shape(
-        type="rect",
-        x0=30,
-        y0=30,
-        x1=current_x - db_padding + 20,
-        y1=max_height + 30,
-        line=dict(color=border_color, width=3),
-        fillcolor=None
-    )
+        current_x = db_right + db_padding
     
     # Set up the layout
     fig.update_layout(
